@@ -5,29 +5,39 @@ class Student:
         self.student_id = student_id
         self.name = name
 
+
 class Classroom:
-    def __init__(self, class_id, subject):
+    def __init__(self, class_id, room_number):
         self.class_id = class_id
-        self.subject = subject
+        self.room_number = room_number
+
+
+class Subject:
+    def __init__(self, subject_id, name):
+        self.subject_id = subject_id
+        self.name = name
+
 
 class Assignment:
-    def __init__(self, assignment_id, class_id, title):
+    def __init__(self, assignment_id, subject_id, title):
         self.assignment_id = assignment_id
-        self.class_id = class_id
+        self.subject_id = subject_id
         self.title = title
 
+
 class Result:
-    def __init__(self, student_id, assignment_id, score):
+    def __init__(self, student_id, assignment_id, score, letter):
         self.student_id = student_id
         self.assignment_id = assignment_id
         self.score = score
+        self.letter = letter
 
 
 students = {}
-classes = {}
+classrooms = {}
+subjects = {}
 assignments = {}
 results = []
-
 
 def add_student():
     sid = input("Student ID: ")
@@ -47,37 +57,70 @@ def add_result():
     results.append(Result(sid, aid, score))
     print("Result added\n")
 
-def add_class():
-    cid = input("Class ID: ")
-    subject = input("Subject: ")
-    classes[cid] = Classroom(cid, subject)
-    print("Class added\n")
+def add_classroom():
+    cid = input("Classroom ID: ")
+    room = input("Room Number: ")
+    classrooms[cid] = Classroom(cid, room)
+    print("Classroom added\n")
 
 
 def add_assignment():
     aid = input("Assignment ID: ")
-    cid = input("Class ID: ")
+    sid = input("Subject ID: ")
+
+    if sid not in subjects:
+        print("Invalid subject ID\n")
+        return
+
     title = input("Title: ")
-    assignments[aid] = Assignment(aid, cid, title)
+    assignments[aid] = Assignment(aid, sid, title)
     print("Assignment added\n")
 
 
 def add_result():
     sid = input("Student ID: ")
     aid = input("Assignment ID: ")
-    score = input("Score: ")
-    results.append(Result(sid, aid, score))
+
+    if sid not in students or aid not in assignments:
+        print("Invalid student or assignment ID\n")
+        return
+
+    score = float(input("Score: "))
+
+    # Auto letter grade
+    if score >= 90:
+        letter = "A"
+    elif score >= 80:
+        letter = "B"
+    elif score >= 70:
+        letter = "C"
+    elif score >= 60:
+        letter = "D"
+    else:
+        letter = "F"
+
+    results.append(Result(sid, aid, score, letter))
     print("Result added\n")
 
 
 def view_results():
+    print("\n--- Results ---")
+
     for r in results:
         student = students.get(r.student_id)
         assignment = assignments.get(r.assignment_id)
+        subject = subjects.get(assignment.subject_id) if assignment else None
 
-        if student and assignment:
-            print(f"{student.name} - {assignment.title}: {r.score}")
+        if student and assignment and subject:
+            print(f"{student.name} | {subject.name} | {assignment.title} | {r.score} ({r.letter})")
+
     print()
+
+def add_subject():
+    sid = input("Subject ID: ")
+    name = input("Subject Name: ")
+    subjects[sid] = Subject(sid, name)
+    print("Subject added\n")
 
 
 def menu():
@@ -105,6 +148,25 @@ def menu():
             break
         else:
             print("Invalid option\n")
+print("1. Add Student")
+print("2. Add Classroom")
+print("3. Add Subject")
+print("4. Add Assignment")
+print("5. Add Result")
+print("6. View Results")
+print("7. Exit")
 
 
 menu()
+elif choice == "2":
+    add_classroom()
+elif choice == "3":
+    add_subject()
+elif choice == "4":
+    add_assignment()
+elif choice == "5":
+    add_result()
+elif choice == "6":
+    view_results()
+elif choice == "7":
+    break
