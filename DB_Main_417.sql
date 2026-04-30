@@ -36,3 +36,33 @@ CREATE TABLE `Parents` (
 `Address` varchar(255),
 PRIMARY KEY (`Parent_ID`)
 );
+-- ADDITIONAL TABLES (CB)
+
+CREATE TABLE Teachers (
+    teacher_id INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    email VARCHAR(100)
+);
+  CREATE TABLE Subjects (
+    subject_id INT AUTO_INCREMENT PRIMARY KEY,
+    subject_name VARCHAR(100),
+    teacher_id INT,
+    FOREIGN KEY (teacher_id) REFERENCES Teachers(teacher_id)
+);
+  CREATE TABLE Assignments (
+    assignment_id INT AUTO_INCREMENT PRIMARY KEY,
+    subject_id INT,
+    title VARCHAR(100),
+    due_date DATE,
+    FOREIGN KEY (subject_id) REFERENCES Subjects(subject_id)
+);
+CREATE TABLE Results (
+    result_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT,
+    assignment_id INT,
+    score INT,
+    grade_letter CHAR(2),
+    FOREIGN KEY (student_id) REFERENCES Student(Student_ID),
+    FOREIGN KEY (assignment_id) REFERENCES Assignments(assignment_id)
+);
