@@ -1,0 +1,110 @@
+# School Management System (Object-Oriented)
+
+class Student:
+    def __init__(self, student_id, name):
+        self.student_id = student_id
+        self.name = name
+
+class Classroom:
+    def __init__(self, class_id, subject):
+        self.class_id = class_id
+        self.subject = subject
+
+class Assignment:
+    def __init__(self, assignment_id, class_id, title):
+        self.assignment_id = assignment_id
+        self.class_id = class_id
+        self.title = title
+
+class Result:
+    def __init__(self, student_id, assignment_id, score):
+        self.student_id = student_id
+        self.assignment_id = assignment_id
+        self.score = score
+
+
+students = {}
+classes = {}
+assignments = {}
+results = []
+
+
+def add_student():
+    sid = input("Student ID: ")
+    name = input("Name: ")
+    students[sid] = Student(sid, name)
+    print("Student added\n")
+
+def add_result():
+    sid = input("Student ID: ")
+    aid = input("Assignment ID: ")
+
+    if sid not in students or aid not in assignments:
+        print("Invalid student or assignment ID\n")
+        return
+
+    score = input("Score: ")
+    results.append(Result(sid, aid, score))
+    print("Result added\n")
+
+def add_class():
+    cid = input("Class ID: ")
+    subject = input("Subject: ")
+    classes[cid] = Classroom(cid, subject)
+    print("Class added\n")
+
+
+def add_assignment():
+    aid = input("Assignment ID: ")
+    cid = input("Class ID: ")
+    title = input("Title: ")
+    assignments[aid] = Assignment(aid, cid, title)
+    print("Assignment added\n")
+
+
+def add_result():
+    sid = input("Student ID: ")
+    aid = input("Assignment ID: ")
+    score = input("Score: ")
+    results.append(Result(sid, aid, score))
+    print("Result added\n")
+
+
+def view_results():
+    for r in results:
+        student = students.get(r.student_id)
+        assignment = assignments.get(r.assignment_id)
+
+        if student and assignment:
+            print(f"{student.name} - {assignment.title}: {r.score}")
+    print()
+
+
+def menu():
+    while True:
+        print("1. Add Student")
+        print("2. Add Class")
+        print("3. Add Assignment")
+        print("4. Add Result")
+        print("5. View Results")
+        print("6. Exit")
+
+        choice = input("Select option: ")
+
+        if choice == "1":
+            add_student()
+        elif choice == "2":
+            add_class()
+        elif choice == "3":
+            add_assignment()
+        elif choice == "4":
+            add_result()
+        elif choice == "5":
+            view_results()
+        elif choice == "6":
+            break
+        else:
+            print("Invalid option\n")
+
+
+menu()
