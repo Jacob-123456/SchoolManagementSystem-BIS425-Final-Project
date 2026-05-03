@@ -90,19 +90,21 @@ def add_result():
     student_id = result_student_entry.get()
     assignment_id = result_assignment_entry.get()
     try:
-        score = float(result_score_entry.get())
+        real_score = float(result_score_entry.get())
+        max_score = float(result_score_entry_max.get())
+        percentage_score = real_score / max_score * 100
     except:
         output.insert(END, "Invalid score")
         return
-    if score >= 90: letter = "A"
-    elif score >= 80: letter = "B"
-    elif score >= 70: letter = "C"
-    elif score >= 60: letter = "D"
+    if percentage_score >= 90: letter = "A"
+    elif percentage_score >= 80: letter = "B"
+    elif percentage_score >= 70: letter = "C"
+    elif percentage_score >= 60: letter = "D"
     else: letter = "F"
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO results (student_id, assignment_id, score, letter) VALUES (?, ?, ?, ?)",
-                   (student_id, assignment_id, score, letter))
+    cursor.execute("INSERT INTO results (student_id, assignment_id, real_score, letter, max_score, percentage_score) VALUES (?, ?, ?, ?, ?, ?)",
+                   (student_id, assignment_id, real_score, letter, max_score, percentage_score))
     conn.commit()
     conn.close()
     output.insert(END, "Result added")
@@ -113,7 +115,7 @@ def search_student():
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
     query = """
-    SELECT students.name, subjects.name, assignments.title, results.score, results.letter
+    SELECT students.name, subjects.name, assignments.title, results.percentage_score, results.letter
     FROM students
     JOIN results ON students.student_id = results.student_id
     JOIN assignments ON assignments.assignment_id = results.assignment_id
@@ -236,10 +238,13 @@ Label(form_r, text="Score").grid(row=2, column=0)
 result_score_entry = Entry(form_r)
 result_score_entry.grid(row=2, column=1)
 
+Label(form_r, text="Maximum Score").grid(row=3, column=0)
+result_score_entry_max = Entry(form_r)
+result_score_entry_max.grid(row=3, column=1)
 
-Button(form_r, text="Add Result", command=add_result).grid(row=3, column=0, columnspan=2)
+Button(form_r, text="Add Result", command=add_result).grid(row=4, column=0, columnspan=2)
 
-result_tree = make_tree(result_frame, ("id", "student_id", "assignment_id", "score", "letter"))
+result_tree = make_tree(result_frame, ("id", "student_id", "assignment_id", "real_score", "letter", "max_score", "percentage_score"))
 
 # --- Search ---
 search_frame = LabelFrame(root, text="Search", padx=10, pady=10)
