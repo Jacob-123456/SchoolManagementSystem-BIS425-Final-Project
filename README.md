@@ -5,6 +5,8 @@ Update log:
 
 4/17/26 - Made DB, made student, demerit, parent table.
 4/29/26 - Additional tables, testing 
+5/3/26 - added visible updating table that shows data from db.
+
 School Management System - Setup Instructions
 
 1. Make sure Python is installed
