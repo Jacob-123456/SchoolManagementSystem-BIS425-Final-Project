@@ -7,7 +7,7 @@ Update log:
 
 4/29/26 - Additional tables, testing 
 
-5/3/26 - added visible updating table that shows data from db.
+5/3/26 - added visible updating table that shows data from db. The treeview function is just a builder function for all 4 tables to be easily made.
 
 School Management System - Setup Instructions
 
