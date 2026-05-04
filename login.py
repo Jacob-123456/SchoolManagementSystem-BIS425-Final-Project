@@ -61,7 +61,7 @@ root.geometry("900x650")
 
 def open_main():
     root.destroy()  # Close the login window
-    subprocess.Popen([sys.executable, "main (5).py"])
+    subprocess.Popen([sys.executable, "main.py"])
 
 def login_check():
     username = username_entry.get().strip()
