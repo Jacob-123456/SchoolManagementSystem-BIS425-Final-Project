@@ -11,6 +11,9 @@ Update log:
 
 5/4/26 - Added login file. (jacob)
 
+---------------------------------------------------
+
+
 School Management System - Setup Instructions
 
 1. Make sure you have Python installed and an IDE like VS Code, Jupyter Notebook, or something.
