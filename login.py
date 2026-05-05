@@ -5,6 +5,7 @@ import subprocess
 import sys
 import importlib.util
 import os
+import auth
 
 #this checks if you have the bcrypt library, if not it installs it for you. This is used for hashing passwords. 
 #It checks if you can do a pip install first, if not it goes through a uv virtual environment which apparantly I have I guess and it makes package installation like 20% harder.
@@ -21,7 +22,7 @@ import bcrypt
 def hash_password(password: str) -> bytes:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-#this checks if a password is a bcrypt hash. Used to hash all passwords later.
+#this checks if a password is a bcrypt hash to prevent double hashing.
 def is_bcrypt_hash(value: bytes | str) -> bool:
     if isinstance(value, str):
         value = value.encode("utf-8")
@@ -53,16 +54,14 @@ def hash_usertable_passwords():
     conn.commit()
     conn.close()
 
-hash_usertable_passwords()
+hash_usertable_passwords() #will hash all passwords if needed. Hashed passwords will not be rehashed so the worst this does is use some memory.
 
-root = Tk()
-root.title("Login")
-root.geometry("900x650")
-
+#this function does no verification on its own, just opens the main.py file and says the login was verified. Can be changed later if needed for better security.
 def open_main():
+    subprocess.Popen([sys.executable, "main.py", "verified"])
     root.destroy()  # Close the login window
     subprocess.Popen([sys.executable, "main.py"])
-
+#the actual check of username / password. Will return error if no user found. Will hash the input password and compare to hashed password of the user it's checking.
 def login_check():
     username = username_entry.get().strip()
     password = password_entry.get().encode("utf-8")
@@ -90,9 +89,14 @@ def login_check():
     else:
         output.insert(END, "Invalid credentials\n")
 
-def force_login_faculty():
-    open_main()
+def forgot_password():
+    output.insert(END, "Password reset functionality is not implemented yet\n")
+    #How the hell would I make this work. Most use emails for verification but we don't really do that.
 
+root = Tk()
+root.title("Login")
+root.geometry("900x650")
+    
 student_frame = LabelFrame(root, text="Login", padx=10, pady=10)
 student_frame.pack(fill="x", padx=10, pady=5)
 
@@ -121,17 +125,29 @@ login_frame.pack(fill="x", padx=10, pady=5)
 
 Button(login_frame, text="Login", command=login_check).grid(row=3, column=0, columnspan=2)
 
+#adds a line. I thought it would look good but eh. I'm not a fuckass UI designer god bless them they could make this project look so much better.
+separator = Frame(root, height=5, bg="grey")
+separator.pack(fill="x", padx=10, pady=5)
+
+#debug login frame & button
 debug_frame = LabelFrame(root, text="force_login(debug)", padx=10, pady=10)
 debug_frame.pack(fill="x", padx=10, pady=5)
-Button(debug_frame, text="Login as faculty", command=force_login_faculty).grid(row=0, column=0, columnspan=2)
+Button(debug_frame, text="Login as faculty", command=open_main).grid(row=0, column=0, columnspan=2)
 
+#forgot account frame & button
+forgot_account_frame = LabelFrame(root, text="Forgot Account", padx=10, pady=10)
+forgot_account_frame.pack(fill="x", padx=10, pady=5)
+Button(forgot_account_frame, text="Reset Password", command=forgot_password).grid(row=0, column=0, columnspan=2)
 
+#log output frame
 log_label = Label(root, text="Log")
 
 log_label.pack(padx=5, pady=0)
 
-output = Listbox(root, width=60, height=5)
+output = Listbox(root, width=50, height=5)
 output.pack(padx=5, pady=5)
+
+
 
 
 root.mainloop()
