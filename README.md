@@ -5,13 +5,13 @@ Update log:
 
 4/17/26 - Made DB, made student, demerit, parent table. (jacob)
 
-4/29/26 - Additional tables, testing 
+4/29/26 - Additional tables, testing (chris)
 
 5/3/26 - added visible updating table that shows data from db. The treeview function is just a builder function for all 4 tables to be easily made. (jacob)
 
 5/4/26 - Added login file, added auth checker so no one can open and use main.py without logging in from login.py first (jacob)
 
-5/5/26 - added password resetting w/ security question check to reset password. 
+5/5/26 - added password resetting w/ security question check to reset password. (jacob)
 
 
 ---------------------------------------------------
