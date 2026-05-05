@@ -1,6 +1,11 @@
 from tkinter import *
 from tkinter import ttk
 import sqlite3
+import subprocess
+import sys
+
+
+
 
 # ---------------- REFRESH FUNCTIONS ----------------
 
@@ -153,7 +158,6 @@ def make_tree(parent, columns):
 # ---------------- GUI ----------------
 
 
-
 root = Tk()
 root.title("School Management System")
 root.geometry("900x650")
@@ -263,4 +267,7 @@ output.pack(padx=10, pady=10)
 # Load existing data on startup
 refresh_all()
 
-root.mainloop()
+if "verified" in sys.argv:
+    root.mainloop()
+else:
+    print("Unauthorized access. Please log in through the login screen.")
