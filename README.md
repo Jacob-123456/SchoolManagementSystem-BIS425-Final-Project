@@ -19,7 +19,7 @@ Update log:
 
 1. Make sure you have Python installed and an IDE like VS Code, Jupyter Notebook, or something.
    
-3. Install login.py, school.db, main.py, auth.py
+3. Install login.py, school.db, main.py, auth.py. **OR download SMS folder.zip and unzip.** It has every file.
    
 5. Put the files in a folder together.
    
