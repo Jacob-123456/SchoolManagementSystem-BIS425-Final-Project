@@ -137,30 +137,44 @@ def search_student():
         output.insert(END, "No results found")
     conn.close()
 
-
 def create_account():
     username = username_entry.get()
     password = password_entry.get()
     account_type = selected_account_type.get()
     security_answer = security_question_entry.get()
+    first_name = first_name_entry.get()
+    last_name = last_name_entry.get()
 
-    # 🔴 INPUT VALIDATION (INDENTED)
+    # INPUT VALIDATION
     if not username or not password or not account_type or not security_answer:
         output2.insert(END, "All fields are required\n")
         return
 
-    if not first_name_entry.get() or not last_name_entry.get():
+    if not first_name or not last_name:
         output2.insert(END, "First and last name required\n")
         return
 
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
 
+    # Check if username exists
     cursor.execute("SELECT * FROM usertable WHERE username = ?", (username,))
     if cursor.fetchone():
-        output2.insert(END, "Username already exists")
+        output2.insert(END, "Username already exists\n")
         conn.close()
-        return# ---------------- this function builds the tables on the right ----------------
+        return
+
+    # INSERT ACCOUNT
+    cursor.execute("""
+        INSERT INTO usertable (username, password, account_type, security_question_answer)
+        VALUES (?, ?, ?, ?)
+    """, (username, password, account_type, security_answer))
+
+    conn.commit()
+    conn.close()
+
+    output2.insert(END, "Account created successfully\n")
+
 
 def make_tree(parent, columns):
     frame = Frame(parent)
@@ -351,4 +365,4 @@ refresh_all()
 if "verified" in sys.argv: #checks if logged in first, see login.py open_main function if you want to debug.
     root.mainloop()
 else:
-    print("Unauthorized access. Please log in through the login screen."
+    print("Unauthorized access. Please log in through the login screen.")
