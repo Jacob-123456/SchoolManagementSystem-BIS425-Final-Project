@@ -1,141 +1,111 @@
 from tkinter import *
 from tkinter import ttk
-import sqlite3
-import subprocess
 import sys
+from mySQL_DB import get_conn
 
 
-
-
-# ---------------- REFRESH FUNCTIONS (for table) ----------------
+# ---------------- REFRESH FUNCTIONS ----------------
 
 def refresh_students():
     for row in student_tree.get_children():
         student_tree.delete(row)
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students")
-    for row in cursor.fetchall():
-        student_tree.insert("", END, values=row)
-    conn.close()
+    conn = get_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM students")
+        for row in cursor.fetchall():
+            student_tree.insert("", END, values=row)
+    finally:
+        conn.close()
 
 def refresh_subjects():
     for row in subject_tree.get_children():
         subject_tree.delete(row)
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM subjects")
-    for row in cursor.fetchall():
-        subject_tree.insert("", END, values=row)
-    conn.close()
+    conn = get_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM subjects")
+        for row in cursor.fetchall():
+            subject_tree.insert("", END, values=row)
+    finally:
+        conn.close()
 
 def refresh_assignments():
     for row in assignment_tree.get_children():
         assignment_tree.delete(row)
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM assignments")
-    for row in cursor.fetchall():
-        assignment_tree.insert("", END, values=row)
-    conn.close()
+    conn = get_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM assignments")
+        for row in cursor.fetchall():
+            assignment_tree.insert("", END, values=row)
+    finally:
+        conn.close()
 
 def refresh_results():
     for row in result_tree.get_children():
         result_tree.delete(row)
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM results")
-    for row in cursor.fetchall():
-        result_tree.insert("", END, values=row)
-    conn.close()
+    conn = get_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM results")
+        for row in cursor.fetchall():
+            result_tree.insert("", END, values=row)
+    finally:
+        conn.close()
 
-def refresh_all(): #refreshes all tables, used on startup and after any change to db.
+def refresh_all():
     refresh_students()
     refresh_subjects()
     refresh_assignments()
     refresh_results()
 
+
 # ---------------- FUNCTIONS ----------------
 
-def add_student():
-    sid = student_id_entry.get()
-    name = student_name_entry.get()
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO students VALUES (?, ?)", (sid, name))
-    conn.commit()
-    conn.close()
-    output.insert(END, "Student added")
-    refresh_students()
 
 def add_subject():
     sid = subject_id_entry.get()
     name = subject_name_entry.get()
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO subjects VALUES (?, ?)", (sid, name))
-    conn.commit()
-    conn.close()
-    output.insert(END, "Subject added")
-    refresh_subjects()
-
-def add_assignment():
-    aid = assignment_id_entry.get()
-    sid = assignment_subject_entry.get()
-    title = assignment_title_entry.get()
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO assignments VALUES (?, ?, ?)", (aid, sid, title))
-    conn.commit()
-    conn.close()
-    output.insert(END, "Assignment added")
-    refresh_assignments()
-
-def add_result():
-    student_id = result_student_entry.get()
-    assignment_id = result_assignment_entry.get()
+    conn = get_conn()
     try:
-        real_score = float(result_score_entry.get())
-        max_score = float(result_score_entry_max.get())
-        percentage_score = real_score / max_score * 100
-    except:
-        output.insert(END, "Invalid score")
-        return
-    if percentage_score >= 90: letter = "A"
-    elif percentage_score >= 80: letter = "B"
-    elif percentage_score >= 70: letter = "C"
-    elif percentage_score >= 60: letter = "D"
-    else: letter = "F"
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO results (student_id, assignment_id, real_score, letter, max_score, percentage_score) VALUES (?, ?, ?, ?, ?, ?)",
-                   (student_id, assignment_id, real_score, letter, max_score, percentage_score))
-    conn.commit()
-    conn.close()
-    output.insert(END, "Result added")
-    refresh_results()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO subjects (subject_id, name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE name = VALUES(name)", (sid, name))
+        conn.commit()
+        output.insert(END, "Subject added")
+        refresh_subjects()
+    except Exception as e:
+        conn.rollback()
+        output.insert(END, f"Error: {e}")
+    finally:
+        conn.close()
+
 
 def search_student():
     name = search_entry.get()
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
-    query = """
-    SELECT students.name, subjects.name, assignments.title, results.percentage_score, results.letter
-    FROM students
-    JOIN results ON students.student_id = results.student_id
-    JOIN assignments ON assignments.assignment_id = results.assignment_id
-    JOIN subjects ON subjects.subject_id = assignments.subject_id
-    WHERE students.name LIKE ?
-    """
-    cursor.execute(query, ('%' + name + '%',))
-    rows = cursor.fetchall()
-    output.delete(0, END)
-    if rows:
-        for row in rows:
-            output.insert(END, f"{row[0]} | {row[1]} | {row[2]} | {row[3]} ({row[4]})")
-    else:
-        output.insert(END, "No results found")
-    conn.close()
+    conn = get_conn()
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT students.name, subjects.name, assignments.title, results.percentage_score, results.letter
+        FROM students
+        JOIN results ON students.student_id = results.student_id
+        JOIN assignments ON assignments.assignment_id = results.assignment_id
+        JOIN subjects ON subjects.subject_id = assignments.class_id
+        WHERE students.name LIKE %s
+        """
+        cursor.execute(query, ('%' + name + '%',))
+        rows = cursor.fetchall()
+        output.delete(0, END)
+        if rows:
+            for row in rows:
+                output.insert(END, f"{row[0]} | {row[1]} | {row[2]} | {row[3]:.1f}% ({row[4]})")
+        else:
+            output.insert(END, "No results found")
+    except Exception as e:
+        output.insert(END, f"Error: {e}")
+    finally:
+        conn.close()
 
 def create_account():
     username = username_entry.get()
@@ -145,7 +115,6 @@ def create_account():
     first_name = first_name_entry.get()
     last_name = last_name_entry.get()
 
-    # INPUT VALIDATION
     if not username or not password or not account_type or not security_answer:
         output2.insert(END, "All fields are required\n")
         return
@@ -154,34 +123,53 @@ def create_account():
         output2.insert(END, "First and last name required\n")
         return
 
-    conn = sqlite3.connect("school.db")
-    cursor = conn.cursor()
+    conn = get_conn()
+    try:
+        cursor = conn.cursor()
 
-    # Check if username exists
-    cursor.execute("SELECT * FROM usertable WHERE username = ?", (username,))
-    if cursor.fetchone():
-        output2.insert(END, "Username already exists\n")
+        # Check if username exists
+        cursor.execute("SELECT * FROM usertable WHERE username = %s", (username,))
+        if cursor.fetchone():
+            output2.insert(END, "Username already exists\n")
+            return
+
+        # Insert into usertable
+        cursor.execute("""
+            INSERT INTO usertable (username, password, account_type, security_question_answer)
+            VALUES (%s, %s, %s, %s)
+        """, (username, password, account_type, security_answer))
+
+        user_id = cursor.lastrowid
+
+        # Insert into category table
+        if account_type == "Student":
+            cursor.execute(
+                "INSERT INTO students (name, user_id) VALUES (%s, %s)",
+                (first_name + " " + last_name, user_id)
+            )
+        elif account_type == "Teacher":
+            cursor.execute(
+                "INSERT INTO teachers (name, user_id) VALUES (%s, %s)",
+                (first_name + " " + last_name, user_id)
+            )
+        elif account_type == "Faculty":
+            cursor.execute(
+                "INSERT INTO faculty (name, user_id) VALUES (%s, %s)",
+                (first_name + " " + last_name, user_id)
+            )
+
+        conn.commit()
+        output2.insert(END, "Account created successfully\n")
+        refresh_all()
+
+    except Exception as e:
+        conn.rollback()
+        output2.insert(END, f"Error: {e}\n")
+    finally:
         conn.close()
-        return
 
-    # determine teacher_id
-    teacher_id = None
 
-    if account_type in ["Teacher", "Faculty"]:
-        teacher_id = 1  # temporary placeholder
-
-    # INSERT ACCOUNT
-    cursor.execute("""
-        INSERT INTO usertable
-        (username, password, account_type, security_question_answer, teacher_id)
-        VALUES (?, ?, ?, ?, ?)
-    """, (username, password, account_type, security_answer, teacher_id))
-
-    conn.commit()
-    conn.close()
-
-    output2.insert(END, "Account created successfully\n")
-
+# ---------------- HELPER ----------------
 
 def make_tree(parent, columns):
     frame = Frame(parent)
@@ -200,19 +188,20 @@ def make_tree(parent, columns):
     scrollbar.pack(side=RIGHT, fill=Y)
 
     return tree
-   # ---------------- GUI ----------------
+
+
+# ---------------- GUI ----------------
 
 root = Tk()
 root.title("School Management System")
 root.geometry("900x650")
 
-# ----------------- tab init ------------------
 notebook = ttk.Notebook(root)
 notebook.pack(fill="both", expand=True)
 
 tab1 = Frame(notebook)
-notebook.add(tab1, text="Dashboard",)
-notebook.bind("<<NotebookTabChanged>>", lambda e: refresh_all()) #refreshes tables when switching tabs.
+notebook.add(tab1, text="Dashboard")
+notebook.bind("<<NotebookTabChanged>>", lambda e: refresh_all())
 
 tab2 = Frame(notebook)
 notebook.add(tab2, text="Create & Manage Accounts")
@@ -224,17 +213,8 @@ student_frame.pack(fill="x", padx=10, pady=5)
 form_s = Frame(student_frame)
 form_s.pack(side=LEFT)
 
-Label(form_s, text="Student ID").grid(row=0, column=0)
-student_id_entry = Entry(form_s)
-student_id_entry.grid(row=0, column=1)
 
-Label(form_s, text="Student Name").grid(row=1, column=0)
-student_name_entry = Entry(form_s)
-student_name_entry.grid(row=1, column=1)
-
-Button(form_s, text="Add Student", command=add_student).grid(row=2, column=0, columnspan=2)
-
-student_tree = make_tree(student_frame, ("student_id", "name"))
+student_tree = make_tree(student_frame, ("student_id", "name", "user_id"))
 
 # --- Subject ---
 subject_frame = LabelFrame(tab1, text="Subject", padx=10, pady=10)
@@ -262,21 +242,8 @@ assignment_frame.pack(fill="x", padx=10, pady=5)
 form_a = Frame(assignment_frame)
 form_a.pack(side=LEFT)
 
-Label(form_a, text="Assignment ID").grid(row=0, column=0)
-assignment_id_entry = Entry(form_a)
-assignment_id_entry.grid(row=0, column=1)
 
-Label(form_a, text="Subject ID").grid(row=1, column=0)
-assignment_subject_entry = Entry(form_a)
-assignment_subject_entry.grid(row=1, column=1)
-
-Label(form_a, text="Title").grid(row=2, column=0)
-assignment_title_entry = Entry(form_a)
-assignment_title_entry.grid(row=2, column=1)
-
-Button(form_a, text="Add Assignment", command=add_assignment).grid(row=3, column=0, columnspan=2)
-
-assignment_tree = make_tree(assignment_frame, ("assignment_id", "subject_id", "title"))
+assignment_tree = make_tree(assignment_frame, ("assignment_id", "subject_id", "title","max_score"))
 
 # --- Result ---
 result_frame = LabelFrame(tab1, text="Result", padx=10, pady=10)
@@ -285,23 +252,6 @@ result_frame.pack(fill="x", padx=10, pady=5)
 form_r = Frame(result_frame)
 form_r.pack(side=LEFT)
 
-Label(form_r, text="Student ID").grid(row=0, column=0)
-result_student_entry = Entry(form_r)
-result_student_entry.grid(row=0, column=1)
-
-Label(form_r, text="Assignment ID").grid(row=1, column=0)
-result_assignment_entry = Entry(form_r)
-result_assignment_entry.grid(row=1, column=1)
-
-Label(form_r, text="Score").grid(row=2, column=0)
-result_score_entry = Entry(form_r)
-result_score_entry.grid(row=2, column=1)
-
-Label(form_r, text="Maximum Score").grid(row=3, column=0)
-result_score_entry_max = Entry(form_r)
-result_score_entry_max.grid(row=3, column=1)
-
-Button(form_r, text="Add Result", command=add_result).grid(row=4, column=0, columnspan=2)
 
 result_tree = make_tree(result_frame, ("id", "student_id", "assignment_id", "real_score", "letter", "max_score", "percentage_score"))
 
@@ -315,17 +265,15 @@ search_entry.grid(row=0, column=1)
 
 Button(search_frame, text="Search", command=search_student).grid(row=1, column=0, columnspan=2)
 
+# --- Output ---
+output = Listbox(tab1, width=90)
+output.pack(padx=10, pady=10)
 
+# ---------------- TAB 2 ----------------
 
-
-#------------------- Tab 2 Data ---------------------
-
-##create account frame
 create_account_frame = LabelFrame(tab2, text="Create Account", padx=10, pady=10)
 create_account_frame.grid(row=0, column=0, padx=5, pady=5, columnspan=3, sticky="ew")
 
-
-##data input for demographic data.
 Label(create_account_frame, text="First name").grid(row=0, column=1)
 first_name_entry = Entry(create_account_frame)
 first_name_entry.grid(row=0, column=2)
@@ -334,7 +282,6 @@ Label(create_account_frame, text="Last name").grid(row=1, column=1)
 last_name_entry = Entry(create_account_frame)
 last_name_entry.grid(row=1, column=2)
 
-#data input for account_required information.
 Label(create_account_frame, text="Username").grid(row=0, column=3)
 username_entry = Entry(create_account_frame)
 username_entry.grid(row=0, column=4)
@@ -345,7 +292,6 @@ password_entry.grid(row=1, column=4)
 
 selected_account_type = StringVar()
 Label(create_account_frame, text="Account Type").grid(row=2, column=3)
-
 account_type_options = ["Student", "Teacher", "Faculty"]
 account_type_create_account = ttk.Combobox(create_account_frame, textvariable=selected_account_type, values=account_type_options, state="readonly")
 account_type_create_account.grid(row=2, column=4)
@@ -354,23 +300,16 @@ Label(create_account_frame, text="What is the user's first pet's name?").grid(ro
 security_question_entry = Entry(create_account_frame)
 security_question_entry.grid(row=3, column=4)
 
-
-
-
 Button(create_account_frame, text="Create Account", command=create_account).grid(row=4, column=0, columnspan=1)
-
-
-# --- Output ---
-output = Listbox(tab1, width=90)
-output.pack(padx=10, pady=10)
 
 output2 = Listbox(tab2, width=50, height=10)
 output2.grid(row=5, column=0, padx=10, pady=10)
 
-# Load existing data on startup
+# ---------------- STARTUP ----------------
+
 refresh_all()
 
-if "verified" in sys.argv: #checks if logged in first, see login.py open_main function if you want to debug.
+if "verified" in sys.argv:
     root.mainloop()
 else:
     print("Unauthorized access. Please log in through the login screen.")
