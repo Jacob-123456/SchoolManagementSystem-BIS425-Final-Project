@@ -7,293 +7,314 @@ import importlib.util
 import os
 import auth
 
-#this checks if you have the bcrypt library, if not it installs it for you. This is used for hashing passwords. 
-#It checks if you can do a pip install first, if not it goes through a uv virtual environment which apparantly I have I guess and it makes package installation like 20% harder.
+# ── dependency check ──────────────────────────────────────────────────────────
 if importlib.util.find_spec("bcrypt") is None:
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "bcrypt"])
     except:
         subprocess.check_call(["uv", "pip", "install", "bcrypt"],
-                             env={**os.environ, "VIRTUAL_ENV": ".venv"})
+                              env={**os.environ, "VIRTUAL_ENV": ".venv"})
 
 import bcrypt
 
-#this will hash a password
+# ── helpers ───────────────────────────────────────────────────────────────────
 def hash_password(password: str) -> bytes:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-#this checks if a password is a bcrypt hash to prevent double hashing.
 def is_bcrypt_hash(value: bytes | str) -> bool:
     if isinstance(value, str):
         value = value.encode("utf-8")
     return value.startswith((b"$2a$", b"$2b$", b"$2y$"))
 
-#this will hash all passwords if needed.
 def hash_usertable_passwords():
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-
     cursor.execute("SELECT rowid, password FROM usertable")
-    rows = cursor.fetchall()
-
-    for rowid, password in rows:
-        if isinstance(password, str):
-            raw_password = password.encode("utf-8")
-        else:
-            raw_password = password
-
-        if is_bcrypt_hash(raw_password):
+    for rowid, password in cursor.fetchall():
+        raw = password.encode("utf-8") if isinstance(password, str) else password
+        if is_bcrypt_hash(raw):
             continue
-
-        hashed = hash_password(raw_password.decode("utf-8"))
-        cursor.execute(
-            "UPDATE usertable SET password = ? WHERE rowid = ?",
-            (hashed, rowid)
-        )
-
+        cursor.execute("UPDATE usertable SET password = ? WHERE rowid = ?",
+                       (hash_password(raw.decode("utf-8")), rowid))
     conn.commit()
     conn.close()
 
 def hash_usertable_security_questions():
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-
     cursor.execute("SELECT rowid, security_question_answer FROM usertable")
-    rows = cursor.fetchall()
-
-    for rowid, security_question_answer in rows:
-        if isinstance(security_question_answer, str):
-            raw_answer = security_question_answer.encode("utf-8")
-        else:
-            raw_answer = security_question_answer
-
-        if is_bcrypt_hash(raw_answer):
+    for rowid, answer in cursor.fetchall():
+        raw = answer.encode("utf-8") if isinstance(answer, str) else answer
+        if is_bcrypt_hash(raw):
             continue
-
-        hashed = hash_password(raw_answer.decode("utf-8"))
-        cursor.execute(
-            "UPDATE usertable SET security_question_answer = ? WHERE rowid = ?",
-            (hashed, rowid)
-        )
-
+        cursor.execute("UPDATE usertable SET security_question_answer = ? WHERE rowid = ?",
+                       (hash_password(raw.decode("utf-8")), rowid))
     conn.commit()
     conn.close()
 
-hash_usertable_passwords() #will hash all passwords if needed. Hashed passwords will not be rehashed so the worst this does is use some memory.
-hash_usertable_security_questions() #will hash all security question answers if needed. Hashed answers will not be rehashed so the worst this does is use some memory.
+hash_usertable_passwords()
+hash_usertable_security_questions()
 
-#this function does no verification on its own, just opens the main.py file and says the login was verified. Can be changed later if needed for better security.
+# ── launchers ─────────────────────────────────────────────────────────────────
+def open_teacher(user_id):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    subprocess.Popen([sys.executable, os.path.join(base_dir, "teacher.py"), "verified", str(user_id)])
+    root.destroy()
+
 def open_main():
-    subprocess.Popen([sys.executable, "main.py", "verified"])
-    root.destroy()  # Close the login window
-    subprocess.Popen([sys.executable, "main.py"])
-#the actual check of username / password. Will return error if no user found. Will hash the input password and compare to hashed password of the user it's checking.
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    subprocess.Popen([sys.executable, os.path.join(base_dir, "main.py"), "verified"])
+    root.destroy()
+
+# ── login logic ───────────────────────────────────────────────────────────────
 def login_check():
     username = username_entry.get().strip()
     password = password_entry.get().encode("utf-8")
     account_type = selected_account_type.get()
 
+    if not username or not password or not account_type:
+        log("Please fill in all fields.")
+        return
+
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT username, password, account_type FROM usertable WHERE username=?", (username,))
+    cursor.execute("SELECT user_id, username, password, account_type FROM usertable WHERE username=?", (username,))
     result = cursor.fetchone()
     conn.close()
 
-    if not result: #checks for valid username
-        output.insert(END, "No user found with that username\n")
+    if not result:
+        log("No user found with that username.")
         return
-    stored_username, stored_hash, stored_account_type = result
 
-    if account_type != stored_account_type: #checks for valid account type
-        output.insert(END, f"Account type does not match, this user is not a {account_type}\n")
+    user_id, stored_username, stored_hash, stored_account_type = result
+
+    if account_type != stored_account_type:
+        log(f"This account is not registered as '{account_type}'.")
         return
 
     if isinstance(stored_hash, str):
         stored_hash = stored_hash.encode("utf-8")
 
-    if bcrypt.checkpw(password, stored_hash) == TRUE: #checks for valid password. password = user input, stored_hash = hash of password from username.
-        output.insert(END, f"{account_type} {stored_username} logged in successfully\n")
+    if bcrypt.checkpw(password, stored_hash):
+        log(f"Logged in as {stored_username} ({stored_account_type})")
         if account_type == "Faculty":
             open_main()
+        elif account_type == "Teacher":
+            open_teacher(user_id)
     else:
-        output.insert(END, "Invalid credentials\n")
+        log("Incorrect password.")
 
-#forgot password functions. This is a 3 function process even though it probably didn't need to be I just started coding it and it became this. I don't have great planning.
+def log(msg):
+    output.config(state=NORMAL)
+    output.insert(END, msg + "\n")
+    output.see(END)
+    output.config(state=DISABLED)
+
+# ── forgot password ───────────────────────────────────────────────────────────
 def forgot_password_1():
-    global forgot_window
+    global forgot_window, password_output
+    global forgot_password1_username_input, username_entry_forgot, forgot_password_button_1
+
     forgot_window = Toplevel(root)
-    forgot_window.title("Forgot Password")
-    forgot_window.geometry("500x300")
+    forgot_window.title("Reset Password")
+    forgot_window.geometry("420x320")
+    forgot_window.resizable(False, False)
+    forgot_window.configure(bg=BG)
 
+    Label(forgot_window, text="Reset Password", font=("Segoe UI", 13, "bold"),
+          bg=BG, fg=FG).pack(pady=(18, 8))
 
+    form = Frame(forgot_window, bg=BG)
+    form.pack(padx=30, fill="x")
 
-    log_password = Label(forgot_window, text="Log")
-    log_password.grid(row=6, column=0, columnspan=2, padx=5, pady=0)
-    global password_output
-    password_output = Listbox(forgot_window, width=40, height=10)
-    password_output.grid(row=7, column=0, columnspan=2, padx=5, pady=5)
+    forgot_password1_username_input = Label(form, text="Username", bg=BG, fg=FG, font=FONT)
+    forgot_password1_username_input.grid(row=0, column=0, sticky="w", pady=4)
+    username_entry_forgot = Entry(form, width=28, font=FONT)
+    username_entry_forgot.grid(row=0, column=1, pady=4, padx=(8, 0))
 
-    global forgot_password1_username_input
-    global username_entry_forgot
-    global forgot_password_button_1
+    forgot_password_button_1 = Button(forgot_window, text="Next →", command=forgot_password_2,
+                                      bg=ACCENT, fg="white", font=FONT, relief=FLAT,
+                                      padx=16, pady=6, cursor="hand2")
+    forgot_password_button_1.pack(pady=12)
 
-    forgot_password1_username_input = Label(forgot_window, text="Username")
-    forgot_password1_username_input.grid(row=0, column=0)
-    username_entry_forgot = Entry(forgot_window)
-    username_entry_forgot.grid(row=0, column=1)
+    Frame(forgot_window, bg="#444", height=1).pack(fill="x", padx=20)
 
-    forgot_password_button_1 = Button(forgot_window, text="Submit", command=forgot_password_2)
-    forgot_password_button_1.grid(row=0, column=2)
+    password_output = Text(forgot_window, height=5, state=DISABLED, bg="#1e1e1e",
+                           fg="#aaa", font=("Consolas", 9), relief=FLAT, padx=8, pady=4)
+    password_output.pack(fill="x", padx=20, pady=10)
 
 
 def forgot_password_2():
-    forgot_password1_username_input.destroy()
     global username_entry_forgot_data
     username_entry_forgot_data = username_entry_forgot.get().strip()
-    
-    #makes sure there's a user with that username, if not it returns an error and goes back to the first forgot password screen.
+
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
     cursor.execute("SELECT username FROM usertable WHERE username=?", (username_entry_forgot_data,))
     result = cursor.fetchone()
     conn.close()
+
     if not result:
         forgot_window.destroy()
         forgot_password_1()
-        password_output.insert(END, "No user found with that username\n")
+        forgot_log("No user found with that username.")
         return
-    
+
+    forgot_password1_username_input.destroy()
     username_entry_forgot.destroy()
     forgot_password_button_1.destroy()
 
-    forgot_password_2_label = Label(forgot_window, text="What's your first pet's name?")
-    forgot_password_2_label.grid(row=1, column=0)
+    form2 = Frame(forgot_window, bg=BG)
+    form2.pack(padx=30, fill="x")
 
+    lbl = Label(form2, text="First pet's name?", bg=BG, fg=FG, font=FONT)
+    lbl.grid(row=0, column=0, sticky="w", pady=4)
+    sec_entry = Entry(form2, width=28, font=FONT)
+    sec_entry.grid(row=0, column=1, pady=4, padx=(8, 0))
 
-    global security_question_entry_global
-    security_question_entry = Entry(forgot_window)
-    security_question_entry.grid(row=1, column=1)
+    btn_frame = Frame(forgot_window, bg=BG)
+    btn_frame.pack(pady=8)
 
-    forgot_password_button_2 = Button(forgot_window, text="Submit", command=lambda:[globals().update({"security_question_entry_global": security_question_entry.get().strip()}), forgot_password_3(), forgot_password_button_2.destroy(), forgot_password_2_label.destroy(), security_question_entry.destroy(),separator.destroy(), forgot_password_button_2_go_back.destroy()])
-    forgot_password_button_2.grid(row=2, column=0, columnspan=2)
+    def submit():
+        global security_question_entry_global
+        security_question_entry_global = sec_entry.get().strip()
+        lbl.destroy()
+        sec_entry.destroy()
+        btn_frame.destroy()
+        forgot_password_3()
 
-    separator = Frame(forgot_window, height=5, bg="black")
-    separator.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+    Button(btn_frame, text="Next →", command=submit,
+           bg=ACCENT, fg="white", font=FONT, relief=FLAT, padx=16, pady=6, cursor="hand2").pack(side=LEFT, padx=5)
+    Button(btn_frame, text="← Back", command=lambda: [forgot_window.destroy(), forgot_password_1()],
+           bg="#555", fg="white", font=FONT, relief=FLAT, padx=16, pady=6, cursor="hand2").pack(side=LEFT, padx=5)
 
-    forgot_password_button_2_go_back = Button(forgot_window, text="Go Back", command=lambda: [forgot_window.destroy(), forgot_password_1()])
-    forgot_password_button_2_go_back.grid(row=4, column=0, columnspan=2)
 
 def forgot_password_3():
-
-
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
     cursor.execute("SELECT security_question_answer FROM usertable WHERE username=?", (username_entry_forgot_data,))
     result = cursor.fetchone()
     conn.close()
-    if bcrypt.checkpw(security_question_entry_global.encode("utf-8"), result[0]): #checks if security question answer is correct. result[0] is the hashed answer from the db.
-        #forgot_password_4()
-        password_output.insert(END, "Security question answered correctly\n")
-        Label(forgot_window, text="New Password").grid(row=1, column=0)
+
+    if bcrypt.checkpw(security_question_entry_global.encode("utf-8"), result[0]):
+        forgot_log("Security question correct. Enter your new password.")
+
+        form3 = Frame(forgot_window, bg=BG)
+        form3.pack(padx=30, fill="x")
+
+        Label(form3, text="New Password", bg=BG, fg=FG, font=FONT).grid(row=0, column=0, sticky="w", pady=4)
         global new_password_entry
+        new_password_entry = Entry(form3, width=28, font=FONT, show="*")
+        new_password_entry.grid(row=0, column=1, pady=4, padx=(8, 0))
 
-        new_password_entry = Entry(forgot_window)
-        new_password_entry.grid(row=1, column=1)
+        btn_frame = Frame(forgot_window, bg=BG)
+        btn_frame.pack(pady=8)
 
-        Button(forgot_window, text="Reset Password", command=reset_password).grid(row=2, column=0, columnspan=2)
-
-        separator = Frame(forgot_window, height=5, bg="black")
-        separator.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
-
-        forgot_password_button_2_go_back = Button(forgot_window, text="Go back", command=lambda: [forgot_window.destroy(), forgot_password_1()])
-        forgot_password_button_2_go_back.grid(row=4, column=0, columnspan=2)
-
-
+        Button(btn_frame, text="Reset Password", command=reset_password,
+               bg="#27ae60", fg="white", font=FONT, relief=FLAT, padx=16, pady=6, cursor="hand2").pack(side=LEFT, padx=5)
+        Button(btn_frame, text="← Back", command=lambda: [forgot_window.destroy(), forgot_password_1()],
+               bg="#555", fg="white", font=FONT, relief=FLAT, padx=16, pady=6, cursor="hand2").pack(side=LEFT, padx=5)
     else:
-        password_output.insert(END, "Incorrect answer to security question\n")
+        forgot_log("Incorrect answer. Try again.")
         forgot_password_2()
 
-
-   
-
-#def forgot_password_check():
-
+def forgot_log(msg):
+    password_output.config(state=NORMAL)
+    password_output.insert(END, msg + "\n")
+    password_output.see(END)
+    password_output.config(state=DISABLED)
 
 def reset_password():
-    username = username_entry_forgot_data
     new_password = new_password_entry.get().strip()
-
-    if not username or not new_password:
-        output.insert(END, "Username and new password cannot be empty\n")
+    if not new_password:
+        forgot_log("Password cannot be empty.")
         return
-
-    hashed_new_password = hash_password(new_password)
-
+    hashed = hash_password(new_password)
     conn = sqlite3.connect("school.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE usertable SET password=? WHERE username=?", (hashed_new_password, username))
-    if cursor.rowcount == 0:
-        password_output.insert(END, "No user found with that username\n")
-    else:
-        password_output.insert(END, "Password reset successfully, you may close this window\n")
+    cursor.execute("UPDATE usertable SET password=? WHERE username=?", (hashed, username_entry_forgot_data))
     conn.commit()
     conn.close()
+    forgot_log("Password reset successfully. You may close this window.")
 
+# ── theme ─────────────────────────────────────────────────────────────────────
+BG     = "#1a1a2e"
+PANEL  = "#16213e"
+ACCENT = "#0f3460"
+FG     = "#e0e0e0"
+FONT   = ("Segoe UI", 10)
+
+# ── root window ───────────────────────────────────────────────────────────────
 root = Tk()
-root.title("Login")
-root.geometry("900x650")
-    
-student_frame = LabelFrame(root, text="Login", padx=10, pady=10)
-student_frame.pack(fill="x", padx=10, pady=5)
+root.title("School Management System — Login")
+root.geometry("420x520")
+root.resizable(False, False)
+root.configure(bg=BG)
 
-form_s = Frame(student_frame)
-form_s.pack(side=LEFT)
+# ── title ─────────────────────────────────────────────────────────────────────
+title_frame = Frame(root, bg=ACCENT, pady=18)
+title_frame.pack(fill="x")
+Label(title_frame, text="🏫  School Management System",
+      font=("Segoe UI", 14, "bold"), bg=ACCENT, fg="white").pack()
+Label(title_frame, text="Sign in Page",
+      font=("Segoe UI", 9), bg=ACCENT, fg="#aac4e8").pack()
 
-Label(form_s, text="Username").grid(row=0, column=0)
-username_entry = Entry(form_s)
-username_entry.grid(row=0, column=1)
+# ── login card ────────────────────────────────────────────────────────────────
+card = Frame(root, bg=PANEL, padx=30, pady=24)
+card.pack(padx=30, pady=24, fill="x")
 
-Label(form_s, text="Password").grid(row=1, column=0)
+def field(parent, label, row, hide=False):
+    Label(parent, text=label, bg=PANEL, fg=FG, font=FONT, anchor="w").grid(
+        row=row, column=0, sticky="w", pady=(8, 2), columnspan=2)
+    e = Entry(parent, font=FONT, width=30, show="*" if hide else "", bg="#0d1b2a",
+              fg="white", insertbackground="white", relief=FLAT, bd=6)
+    e.grid(row=row+1, column=0, columnspan=2, sticky="ew", ipady=4)
+    return e
 
-password_entry = Entry(form_s)
-password_entry.grid(row=1, column=1)
+card.columnconfigure(0, weight=1)
 
+Label(card, text="Username", bg=PANEL, fg=FG, font=FONT, anchor="w").grid(
+    row=0, column=0, sticky="w", pady=(0, 2), columnspan=2)
+username_entry = Entry(card, font=FONT, width=30, bg="#0d1b2a", fg="white",
+                       insertbackground="white", relief=FLAT, bd=6)
+username_entry.grid(row=1, column=0, columnspan=2, sticky="ew", ipady=4)
+
+Label(card, text="Password", bg=PANEL, fg=FG, font=FONT, anchor="w").grid(
+    row=2, column=0, sticky="w", pady=(10, 2), columnspan=2)
+password_entry = Entry(card, font=FONT, width=30, show="*", bg="#0d1b2a", fg="white",
+                       insertbackground="white", relief=FLAT, bd=6)
+password_entry.grid(row=3, column=0, columnspan=2, sticky="ew", ipady=4)
+
+Label(card, text="Account Type", bg=PANEL, fg=FG, font=FONT, anchor="w").grid(
+    row=4, column=0, sticky="w", pady=(10, 2), columnspan=2)
 selected_account_type = StringVar()
-account_type_options = ["Student", "Teacher", "Faculty"]
-dropdown = ttk.Combobox(form_s, textvariable=selected_account_type, values=account_type_options, state="readonly")
+dropdown = ttk.Combobox(card, textvariable=selected_account_type,
+                        values=["Student", "Teacher", "Faculty"],
+                        state="readonly", font=FONT, width=28)
+dropdown.grid(row=5, column=0, columnspan=2, sticky="ew")
 
+Button(card, text="Login", command=login_check,
+       bg=ACCENT, fg="white", font=("Segoe UI", 11, "bold"),
+       relief=FLAT, pady=8, cursor="hand2", activebackground="#1a5276",
+       activeforeground="white").grid(row=6, column=0, columnspan=2, sticky="ew", pady=(18, 0))
 
-Label(form_s, text="Account Type").grid(row=2, column=0)
-dropdown.grid(row=2, column=1)
+# ── secondary actions ─────────────────────────────────────────────────────────
+actions = Frame(root, bg=BG)
+actions.pack(fill="x", padx=30)
 
-login_frame = LabelFrame(root, text="Login", padx=10, pady=10)
-login_frame.pack(fill="x", padx=10, pady=5)
+Button(actions, text="Forgot Password?", command=forgot_password_1,
+       bg=BG, fg="#6fa3d8", font=("Segoe UI", 9), relief=FLAT,
+       cursor="hand2", activebackground=BG, activeforeground="white").pack(side=LEFT)
 
-Button(login_frame, text="Login", command=login_check).grid(row=3, column=0, columnspan=2)
+Button(actions, text="Debug: Login as Faculty", command=open_main,
+       bg=BG, fg="#666", font=("Segoe UI", 9), relief=FLAT,
+       cursor="hand2", activebackground=BG, activeforeground="white").pack(side=RIGHT)
 
-#adds a line. I thought it would look good but eh. I'm not a fuckass UI designer god bless them they could make this project look so much better.
-separator = Frame(root, height=5, bg="grey")
-separator.pack(fill="x", padx=10, pady=5)
+# ── log output ────────────────────────────────────────────────────────────────
+Frame(root, bg="#333", height=1).pack(fill="x", padx=20, pady=(16, 0))
 
-#debug login frame & button
-debug_frame = LabelFrame(root, text="force_login(debug)", padx=10, pady=10)
-debug_frame.pack(fill="x", padx=10, pady=5)
-Button(debug_frame, text="Login as faculty", command=open_main).grid(row=0, column=0, columnspan=2)
-
-#forgot account frame & button
-forgot_account_frame = LabelFrame(root, text="Forgot Account", padx=10, pady=10)
-forgot_account_frame.pack(fill="x", padx=10, pady=5)
-Button(forgot_account_frame, text="Reset Password", command=forgot_password_1).grid(row=0, column=0, columnspan=2)
-
-#log output frame
-log_label = Label(root, text="Log")
-
-log_label.pack(padx=5, pady=0)
-
-output = Listbox(root, width=50, height=5)
-output.pack(padx=5, pady=5)
-
-
-
+output = Text(root, height=5, state=DISABLED, bg="#111",
+              fg="#aaa", font=("Consolas", 9), relief=FLAT, padx=10, pady=6)
+output.pack(fill="x", padx=20, pady=8)
 
 root.mainloop()
