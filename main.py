@@ -164,11 +164,18 @@ def create_account():
         conn.close()
         return
 
+    # determine teacher_id
+    teacher_id = None
+
+    if account_type in ["Teacher", "Faculty"]:
+        teacher_id = 1  # temporary placeholder
+
     # INSERT ACCOUNT
     cursor.execute("""
-        INSERT INTO usertable (username, password, account_type, security_question_answer)
-        VALUES (?, ?, ?, ?)
-    """, (username, password, account_type, security_answer))
+        INSERT INTO usertable
+        (username, password, account_type, security_question_answer, teacher_id)
+        VALUES (?, ?, ?, ?, ?)
+    """, (username, password, account_type, security_answer, teacher_id))
 
     conn.commit()
     conn.close()
@@ -181,6 +188,7 @@ def make_tree(parent, columns):
     frame.pack(side=LEFT, padx=(20, 0), fill=BOTH, expand=True)
 
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=3)
+
     for col in columns:
         tree.heading(col, text=col)
         tree.column(col, width=100)
@@ -190,9 +198,9 @@ def make_tree(parent, columns):
 
     tree.pack(side=LEFT, fill=BOTH, expand=True)
     scrollbar.pack(side=RIGHT, fill=Y)
-    return tree
 
-# ---------------- GUI ----------------
+    return tree
+   # ---------------- GUI ----------------
 
 root = Tk()
 root.title("School Management System")
