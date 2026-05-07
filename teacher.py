@@ -1,7 +1,7 @@
 from tkinter import *
 from tkinter import ttk
-import sqlite3
 import sys
+from mySQL_DB import get_conn
 
 # ---------------- AUTH ----------------
 if "verified" not in sys.argv:
@@ -15,10 +15,10 @@ except (IndexError, ValueError):
     sys.exit()
 
 def get_teacher_id():
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT teacher_id, name FROM teachers WHERE user_id = ?", (USER_ID,))
+        cursor.execute("SELECT teacher_id, name FROM teachers WHERE user_id = %s", (USER_ID,))
         return cursor.fetchone()
     finally:
         conn.close()
@@ -34,14 +34,14 @@ TEACHER_ID, TEACHER_NAME = teacher_row
 # ---------------- REFRESH ----------------
 
 def get_my_classes():
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT classes.class_id, classes.name, subjects.name
             FROM classes
             JOIN subjects ON subjects.subject_id = classes.subject_id
-            WHERE classes.teacher_id = ?
+            WHERE classes.teacher_id = %s
         """, (TEACHER_ID,))
         return cursor.fetchall()
     finally:
@@ -67,10 +67,10 @@ def refresh_my_classes_tree():
     for row in my_classes_tree.get_children():
         my_classes_tree.delete(row)
     for class_id, class_name, subject_name in get_my_classes():
-        conn = sqlite3.connect("school.db")
+        conn = get_conn()
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM class_students WHERE class_id = ?", (class_id,))
+            cursor.execute("SELECT COUNT(*) FROM class_students WHERE class_id = %s", (class_id,))
             count = cursor.fetchone()[0]
         finally:
             conn.close()
@@ -79,14 +79,14 @@ def refresh_my_classes_tree():
 def refresh_assignments_tree():
     for row in assignment_tree.get_children():
         assignment_tree.delete(row)
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT assignments.assignment_id, classes.name, assignments.title, assignments.max_score
             FROM assignments
             JOIN classes ON classes.class_id = assignments.class_id
-            WHERE classes.teacher_id = ?
+            WHERE classes.teacher_id = %s
         """, (TEACHER_ID,))
         for row in cursor.fetchall():
             assignment_tree.insert("", END, values=row)
@@ -100,21 +100,25 @@ def refresh_ungraded():
     if not label or label not in class_map:
         return
     class_id = class_map[label]
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT students.student_id, students.name, assignments.assignment_id, assignments.title, assignments.max_score
             FROM class_students
             JOIN students ON students.student_id = class_students.student_id
-            CROSS JOIN assignments ON assignments.class_id = ?
-            WHERE class_students.class_id = ?
+            JOIN assignments ON assignments.class_id = %s
+            JOIN assignment_submissions 
+                ON assignment_submissions.assignment_id = assignments.assignment_id
+                AND assignment_submissions.student_id = students.student_id
+                AND assignment_submissions.submitted = TRUE
+            WHERE class_students.class_id = %s
             AND NOT EXISTS (
                 SELECT 1 FROM results
                 WHERE results.student_id = students.student_id
                 AND results.assignment_id = assignments.assignment_id
-            )
-        """, (class_id, class_id))
+    )
+""", (class_id, class_id))
         for row in cursor.fetchall():
             ungraded_tree.insert("", END, values=row)
     finally:
@@ -127,7 +131,7 @@ def refresh_graded():
     if not label or label not in class_map:
         return
     class_id = class_map[label]
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("""
@@ -135,7 +139,7 @@ def refresh_graded():
             FROM results
             JOIN students ON students.student_id = results.student_id
             JOIN assignments ON assignments.assignment_id = results.assignment_id
-            WHERE assignments.class_id = ?
+            WHERE assignments.class_id = %s
         """, (class_id,))
         for row in cursor.fetchall():
             graded_tree.insert("", END, values=row)
@@ -145,7 +149,7 @@ def refresh_graded():
 def refresh_enroll_students():
     for row in enroll_student_tree.get_children():
         enroll_student_tree.delete(row)
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT student_id, name FROM students")
@@ -163,7 +167,7 @@ def refresh_all():
     refresh_enroll_students()
 
 def refresh_subject_dropdown():
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT subject_id, name FROM subjects")
@@ -189,11 +193,11 @@ def create_class():
         log("Fill in all class fields.")
         return
     subject_id = subject_map[subject_label]
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO classes (name, teacher_id, subject_id) VALUES (?, ?, ?)",
+            "INSERT INTO classes (name, teacher_id, subject_id) VALUES (%s, %s, %s)",
             (name, TEACHER_ID, subject_id)
         )
         conn.commit()
@@ -217,18 +221,18 @@ def enroll_student():
         return
     class_id = class_map[label]
     student_id = enroll_student_tree.item(selected[0])["values"][0]
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT 1 FROM class_students WHERE class_id = ? AND student_id = ?",
+            "SELECT 1 FROM class_students WHERE class_id = %s AND student_id = %s",
             (class_id, student_id)
         )
         if cursor.fetchone():
             log("Student already enrolled in this class.")
             return
         cursor.execute(
-            "INSERT INTO class_students (class_id, student_id) VALUES (?, ?)",
+            "INSERT INTO class_students (class_id, student_id) VALUES (%s, %s)",
             (class_id, student_id)
         )
         conn.commit()
@@ -252,11 +256,11 @@ def create_assignment():
         log("Fill in all assignment fields.")
         return
     class_id = class_map[label]
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO assignments (class_id, title, max_score) VALUES (?, ?, ?)",
+            "INSERT INTO assignments (class_id, title, max_score) VALUES (%s, %s, %s)",
             (class_id, title, max_score)
         )
         conn.commit()
@@ -281,18 +285,19 @@ def grade_selected():
         return
     values = ungraded_tree.item(selected[0])["values"]
     student_id, student_name, assignment_id, title, max_score = values
+    max_score = float(max_score)
     percentage = score / max_score * 100
     if percentage >= 90: letter = "A"
     elif percentage >= 80: letter = "B"
     elif percentage >= 70: letter = "C"
     elif percentage >= 60: letter = "D"
     else: letter = "F"
-    conn = sqlite3.connect("school.db")
+    conn = get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO results (student_id, assignment_id, real_score, letter, max_score, percentage_score)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """, (student_id, assignment_id, score, letter, max_score, percentage))
         conn.commit()
         log(f"Graded {student_name}: {score}/{max_score} ({letter})")
