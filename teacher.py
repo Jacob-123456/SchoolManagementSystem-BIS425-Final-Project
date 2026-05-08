@@ -278,38 +278,63 @@ def grade_selected():
     if not selected:
         log("Select a row to grade.")
         return
+
     try:
         score = float(grade_score_entry.get())
     except ValueError:
         log("Enter a valid score.")
         return
+
     values = ungraded_tree.item(selected[0])["values"]
     student_id, student_name, assignment_id, title, max_score = values
     max_score = float(max_score)
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    # ---------------- VALIDATION ----------------
+    cursor.execute("""
+        SELECT 1
+        FROM assignment_submissions
+        WHERE student_id = %s
+        AND assignment_id = %s
+        AND submitted = TRUE
+    """, (student_id, assignment_id))
+
+    if not cursor.fetchone():
+        log("Cannot grade: student has not submitted this assignment.")
+        conn.close()
+        return
+
+    # ---------------- GRADE ----------------
     percentage = score / max_score * 100
+
     if percentage >= 90: letter = "A"
     elif percentage >= 80: letter = "B"
     elif percentage >= 70: letter = "C"
     elif percentage >= 60: letter = "D"
     else: letter = "F"
-    conn = get_conn()
+
     try:
-        cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO results (student_id, assignment_id, real_score, letter, max_score, percentage_score)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (student_id, assignment_id, score, letter, max_score, percentage))
+
         conn.commit()
+
         log(f"Graded {student_name}: {score}/{max_score} ({letter})")
+
         grade_score_entry.delete(0, END)
         refresh_ungraded()
         refresh_graded()
+
     except Exception as e:
         conn.rollback()
         log(f"Error: {e}")
+
     finally:
         conn.close()
-
 def log(msg):
     output.config(state=NORMAL)
     output.insert(END, msg + "\n")
