@@ -30,27 +30,6 @@ if not student_row:
 
 STUDENT_ID, STUDENT_NAME = student_row
 
-# ---------------- DB SETUP ----------------
-def setup_db():
-    conn = get_conn()
-    try:
-        cursor = conn.cursor()
-        # Add submitted column to assignments if it doesn't exist
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS assignment_submissions (
-                id INTEGER AUTO_INCREMENT PRIMARY KEY,
-                assignment_id INTEGER,
-                student_id INTEGER,
-                submitted BOOLEAN DEFAULT FALSE,
-                FOREIGN KEY(assignment_id) REFERENCES assignments(assignment_id),
-                FOREIGN KEY(student_id) REFERENCES students(student_id)
-            )
-        """)
-        conn.commit()
-    finally:
-        conn.close()
-
-setup_db()
 
 # ---------------- DATA ----------------
 
@@ -270,7 +249,7 @@ apply_style()
 # Title bar
 title_frame = Frame(root, bg=ACCENT, pady=14)
 title_frame.pack(fill="x")
-Label(title_frame, text="🏫  Student Portal",
+Label(title_frame, text="Student Page",
       font=("Segoe UI", 14, "bold"), bg=ACCENT, fg="white").pack()
 Label(title_frame, text=f"Logged in as {STUDENT_NAME}",
       font=("Segoe UI", 9), bg=ACCENT, fg="#aac4e8").pack()
